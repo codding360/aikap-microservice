@@ -2,7 +2,6 @@ import { Router, Request, Response } from 'express';
 import ffmpeg from 'fluent-ffmpeg';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 
 const router = Router();
 
@@ -31,18 +30,10 @@ interface TranscodeRequest {
   audioUrl?: string; // Optional URL to an audio file to replace the original audio
 }
 
-// Create logs directory if it doesn't exist
-const logsDir = path.join(__dirname, '../logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
-}
-
-// Save request body to a file for debugging
-async function saveRequestToFile(requestBody: TranscodeRequest): Promise<void> {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const logPath = path.join(logsDir, `request-${timestamp}.json`);
-  await fs.promises.writeFile(logPath, JSON.stringify(requestBody, null, 2));
-  console.log(`Request saved to ${logPath}`);
+// Log request body for debugging (console-based for serverless compatibility)
+function logRequest(requestBody: TranscodeRequest): void {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] Transcode Request:`, JSON.stringify(requestBody, null, 2));
 }
 
 // Convert time in seconds to FFmpeg time format (HH:MM:SS.mmm)
@@ -96,15 +87,15 @@ router.post('/', async (req: Request<{}, {}, TranscodeRequest>, res: Response) =
   try {
     const { inputUrl, outputFormat, captions, captionSettings, audioUrl } = req.body;
 
-    // Save request body to file
-    // await saveRequestToFile(req.body);
+    // Log request for debugging
+    logRequest(req.body);
 
     if (!inputUrl || !outputFormat) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    // Create temporary directory for processing
-    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'transcode-'));
+    // Create temporary directory for processing (use /tmp for Vercel compatibility)
+    const tempDir = await fs.promises.mkdtemp(path.join('/tmp', 'transcode-'));
     const outputPath = path.join(tempDir, `output.${outputFormat}`);
     let command = ffmpeg(inputUrl);
 
